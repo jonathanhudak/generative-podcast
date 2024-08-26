@@ -1,0 +1,10 @@
+# Ignore the cache directory
+storage/cache/
+
+# Ignore the output directory within audio
+storage/audio/output/
+
+# Ignore the environment variable file
+.env
+
+.DS_Store
