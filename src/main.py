@@ -7,6 +7,12 @@ import asyncio
 from datetime import datetime
 from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+from pydantic import BaseModel
+templates = Jinja2Templates(directory="src/templates")  # Set the template directory
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,7 +28,15 @@ os.makedirs('storage/cache', exist_ok=True)
 os.makedirs('storage/audio/output', exist_ok=True)
 os.makedirs('storage/scripts', exist_ok=True)
 
+app = FastAPI()
 anthropic_client = AsyncAnthropic()
+
+# Pydantic models for request bodies
+class PromptRequest(BaseModel):
+    topic: str
+
+class ScriptRequest(BaseModel):
+    prompt: str
 
 # Function to write data to a file
 def write_to_file(filename, data):
@@ -154,92 +168,116 @@ async def generate_script(prompt):
     print(f"Generated Script: {prompt_result}")
     return prompt_result
 
-# Main function
-async def main():
-    # Prompt user for action
-    print("What would you like to do?")
-    print("1: Create a new script prompt")
-    print("2: Generate a new script using an existing prompt")
-    print("3: Generate the podcast from an existing script")
-    action_choice = int(input("Enter your choice (1, 2, or 3): "))
+# Function to create a new script prompt
+async def create_script_prompt(topic):
+    script_prompt = await generate_prompt(topic)
     
-    if action_choice == 1:
-        # Create a new script prompt
-        topic = input("Enter the topic for the podcast episode: ")
-        script_prompt = await generate_prompt(topic)
-        
-        # Generate a timestamped filename using the topic
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        formatted_topic = topic.replace(" ", "_").lower()  # Format topic for filename
-        prompt_filename = f"{formatted_topic}_{timestamp}.md"
+    # Generate a timestamped filename using the topic
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    formatted_topic = topic.replace(" ", "_").lower()  # Format topic for filename
+    prompt_filename = f"{formatted_topic}_{timestamp}.md"
 
-        # Save the generated script prompt to a file
-        with open(f"storage/prompts/{prompt_filename}", 'w') as file:
-            file.write(script_prompt)
+    # Save the generated script prompt to a file
+    with open(f"storage/prompts/{prompt_filename}", 'w') as file:
+        file.write(script_prompt)
 
-        print(f"Script prompt generated and saved as {prompt_filename}.")
-        return
+    print(f"Script prompt generated and saved as {prompt_filename}.")
+    return prompt_filename
 
-    elif action_choice == 2:
-        # Generate a new script using an existing prompt
-        prompt_files = glob.glob('storage/prompts/*.md')
-        
-        # Display prompt options
-        print("Available Prompts:")
-        for index, file_path in enumerate(prompt_files):
-            filename = os.path.basename(file_path).replace('.md', '').replace('_', ' ').title()
-            print(f"{index + 1}: {filename}")
-        
-        choice = int(input("Select a prompt by number (or enter 0 to skip): ")) - 1
-        
-        if choice >= 0 and choice < len(prompt_files):
-            with open(prompt_files[choice], 'r') as file:
-                user_input = file.read()
-            script_filename = os.path.basename(prompt_files[choice])  # Save the prompt filename
-            print(f"Using prompt from {script_filename}.")
-            
-            # Generate the script using the selected prompt
-            script = await generate_script(user_input)
-            
-            # Generate a good filename based on the prompt (without timestamp)
-            formatted_script_name = script_filename.replace('.md', '').replace('_', ' ').title()
-            script_filename = f"{formatted_script_name}_script.md"
+def get_prompt_options():
+    prompt_files = glob.glob('storage/prompts/*.md')
+    prompt_options = []
 
-            # Save the generated script to the storage/scripts directory
-            with open(f"storage/scripts/{script_filename}", 'w') as file:
-                file.write(script)
+    # Collect prompt options
+    for file_path in prompt_files:
+        filename = os.path.basename(file_path).replace('.md', '').replace('_', ' ').title()
+        prompt_options.append((filename, file_path))  # Store both filename and path
 
-            print(f"Script generated and saved as {script_filename}.")
-            return
-        else:
-            print("No valid prompt selected. Exiting.")
-            return
+    return prompt_options
+    
+# Function to generate a new script using an existing prompt
+async def generate_script_from_prompt():
+    # Call the new function to get prompt options
+    prompt_options = get_prompt_options()
+    
+    # Display prompt options
+    print("Available Prompts:")
+    for index, (filename, _) in enumerate(prompt_options):
+        print(f"{index + 1}: {filename}")
+    
+    choice = int(input("Select a prompt by number (or enter 0 to skip): ")) - 1
+    
+    if choice >= 0 and choice < len(prompt_options):
+        with open(prompt_options[choice][1], 'r') as file:
+            user_input = file.read()
+        script_filename = os.path.basename(prompt_options[choice][1])  # Save the prompt filename
+        print(f"Using prompt from {script_filename}.")
         
+        # Generate the script using the selected prompt
+        script = await generate_script(user_input)
+        
+        # Generate a good filename based on the prompt (without timestamp)
+        formatted_script_name = script_filename.replace('.md', '').replace('_', ' ').title()
+        script_filename = f"{formatted_script_name}_script.md"
 
-    elif action_choice == 3:
-        # Generate the podcast from an existing script
-        script_files = glob.glob('storage/scripts/*.md')
-        
-        # Display script options
-        print("Available Scripts:")
-        for index, file_path in enumerate(script_files):
-            filename = os.path.basename(file_path).replace('.md', '').replace('_', ' ').title()
-            print(f"{index + 1}: {filename}")
-        
-        choice = int(input("Select a script by number (or enter 0 to skip): ")) - 1
-        
-        if choice >= 0 and choice < len(script_files):
-            with open(script_files[choice], 'r') as file:
-                user_input = file.read()
-            script_filename = os.path.basename(script_files[choice])  # Save the script filename
-            print(f"Using script from {script_filename}.")
+        # Save the generated script to the storage/scripts directory
+        with open(f"storage/scripts/{script_filename}", 'w') as file:
+            file.write(script)
 
-        else:
-            print("No valid script selected. Exiting.")
-            return
-
+        print(f"Script generated and saved as {script_filename}.")
     else:
-        print("Invalid choice. Exiting.")
+        print("No valid prompt selected. Exiting.")
+
+def get_script_options():
+    script_files = glob.glob('storage/scripts/*.md')
+    script_options = []
+
+    # Collect script options
+    for file_path in script_files:
+        filename = os.path.basename(file_path).replace('.md', '').replace('_', ' ').title()
+        script_options.append((filename, file_path))  # Store both filename and path
+
+    return script_options
+
+# FastAPI endpoints
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.post("/create_prompt")
+async def api_create_prompt(request: PromptRequest):
+    filename = await create_script_prompt(request.topic)
+    return {"message": "Script prompt generated", "filename": filename}
+
+@app.post("/generate_script")
+async def api_generate_script(request: ScriptRequest):
+    script = await generate_script(request.prompt)
+    return {"message": "Script generated", "script": script}
+
+@app.get("/fetch_voices")
+def api_fetch_voices():
+    voices = fetch_voice_ids()
+    return {"voices": voices}
+    
+# Function to generate the podcast from an existing script
+async def generate_podcast_from_script():
+    # Call the new function to get script options
+    script_options = get_script_options()
+    
+    # Display script options
+    print("Available Scripts:")
+    for index, (filename, _) in enumerate(script_options):
+        print(f"{index + 1}: {filename}")
+    
+    choice = int(input("Select a script by number (or enter 0 to skip): ")) - 1
+    
+    if choice >= 0 and choice < len(script_options):
+        script_filename = script_options[choice][1]  # Get the file path
+        with open(script_filename, 'r') as file:
+            user_input = file.read()
+        print(f"Using script from {script_options[choice][0]}.")
+    else:
+        print("No valid script selected. Exiting.")
         return
 
     # Fetch voice IDs
@@ -262,5 +300,30 @@ async def main():
     # Perform text-to-speech conversion
     text_to_speech(selected_voice_id, user_input, script_filename)
 
+async def main():
+    print("Select an option:")
+    print("1: Create a new script prompt")
+    print("2: Generate a new script using an existing prompt")
+    print("3: Generate the podcast from an existing script")
+    action_choice = int(input("Enter your choice (1, 2, or 3): "))
+    
+    if action_choice == 1:
+        await create_script_prompt()
+    elif action_choice == 2:
+        await generate_script_from_prompt()
+    elif action_choice == 3:
+        await generate_podcast_from_script()
+    else:
+        print("Invalid choice. Exiting.")
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    mode = sys.argv[1] if len(sys.argv) > 1 else "web"  # Default to web mode
+    if mode == "cli":
+        asyncio.run(main())
+    elif mode == "web":
+        import uvicorn
+        uvicorn.run("main:app", host="127.0.0.1", port=5432)
+    else:
+        print("Invalid mode. Exiting.")
+    main(mode)  # Call main without asyncio.run

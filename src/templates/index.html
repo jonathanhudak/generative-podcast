@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Podcast Script Generator</title>
+  </head>
+  <body>
+    <h1>Podcast Script Generator</h1>
+    <form id="promptForm">
+      <label for="topic">Enter Topic:</label>
+      <input type="text" id="topic" name="topic" required />
+      <button type="submit">Create Script Prompt</button>
+    </form>
+    <div id="result"></div>
+
+    <script>
+      document
+        .getElementById("promptForm")
+        .addEventListener("submit", async function (event) {
+          event.preventDefault();
+          const topic = document.getElementById("topic").value;
+          const response = await fetch("/create_prompt", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ topic }),
+          });
+          const data = await response.json();
+          document.getElementById("result").innerText =
+            data.message + ": " + data.filename;
+        });
+    </script>
+  </body>
+</html>
