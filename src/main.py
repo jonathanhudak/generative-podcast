@@ -3,8 +3,10 @@ import json
 import os
 import glob
 import sys
+import asyncio
 from datetime import datetime
 from dotenv import load_dotenv
+from anthropic import AsyncAnthropic
 
 # Load environment variables from .env file
 load_dotenv()
@@ -12,10 +14,15 @@ load_dotenv()
 # Access the API key
 XI_API_KEY = os.getenv("XI_API_KEY")
 
+MODEL_NAME = "claude-3-5-sonnet-20240620"
+
 # Create storage directories if they don't exist
 os.makedirs('storage/prompts', exist_ok=True)
 os.makedirs('storage/cache', exist_ok=True)
 os.makedirs('storage/audio/output', exist_ok=True)
+os.makedirs('storage/scripts', exist_ok=True)
+
+anthropic_client = AsyncAnthropic()
 
 # Function to write data to a file
 def write_to_file(filename, data):
@@ -105,29 +112,80 @@ def text_to_speech(voice_id, text, prompt_filename=None):
     else:
         print("Failed to convert text to speech. Response:", response.text)
 
+SYSTEM_PROMPT = "You are an AI prompt engineer that generates prompts that will result in a professional script for solo podcast episodes. The script should be written without any directives in a way that can be read aloud as-is. Please use the <topic> tag to determine the podcast episode topic and add unique and specific additions to the prompt topic to the resulting prompt."
+
+# Function to generate a prompt using Anthropic's Sonnet 3.5
+async def generate_prompt(topic):
+    async with anthropic_client.messages.stream(
+        model=MODEL_NAME,
+        max_tokens=1024,
+        system=SYSTEM_PROMPT,
+        messages=[
+            {"role": "user", "content": f"<topic>{topic}</topic>"}
+        ]
+    ) as stream:
+        async for text in stream.text_stream:
+            print(text, end="", flush=True)
+        print()
+    
+    message = await stream.get_final_message()
+    print(message.to_json())
+    prompt_result = message.content[0].text
+    print(f"Generated Prompt: {prompt_result}")
+    return prompt_result
+
 # Main function
-def main():
-    # List all .md files in the storage/prompts directory
-    prompt_files = glob.glob('storage/prompts/*.md')
+async def main():
+    # List all .md files in the storage/scripts directory
+    script_files = glob.glob('storage/scripts/*.md')
     
-    # Display prompt options
-    print("Available Prompts:")
-    for index, file_path in enumerate(prompt_files):
-        # Extract the filename without the directory and extension
-        filename = os.path.basename(file_path).replace('.md', '').replace('_', ' ').title()
-        print(f"{index + 1}: {filename}")
+    # Prompt user to choose an existing script or create a new one
+    print("Would you like to:")
+    print("1: Select an existing script")
+    print("2: Create a new script")
+    choice = int(input("Enter your choice (1 or 2): "))
     
-    # Prompt user to select a prompt
-    choice = int(input("Select a prompt by number (or enter 0 to skip): ")) - 1
-    
-    if choice >= 0 and choice < len(prompt_files):
-        with open(prompt_files[choice], 'r') as file:
-            user_input = file.read()
-        prompt_filename = os.path.basename(prompt_files[choice])  # Save the prompt filename
+    if choice == 1:
+        # Display script options
+        print("Available Scripts:")
+        for index, file_path in enumerate(script_files):
+            # Extract the filename without the directory and extension
+            filename = os.path.basename(file_path).replace('.md', '').replace('_', ' ').title()
+            print(f"{index + 1}: {filename}")
+        
+        # Prompt user to select a script
+        choice = int(input("Select a script by number (or enter 0 to skip): ")) - 1
+        
+        if choice >= 0 and choice < len(script_files):
+            with open(script_files[choice], 'r') as file:
+                user_input = file.read()
+            script_filename = os.path.basename(script_files[choice])  # Save the script filename
+        else:
+            script_filename = None
+            
+    elif choice == 2:
+        # Prompt user for a topic
+        topic = input("Enter the topic for the podcast episode: ")
+
+        # Generate a new script using Anthropic
+        script_prompt = await generate_prompt(topic)
+        
+        # Generate a timestamped filename using the topic
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        formatted_topic = topic.replace(" ", "_").lower()  # Format topic for filename
+        prompt_filename = f"generated_prompt{formatted_topic}_{timestamp}.md"
+
+        # Optionally, save the generated script to a file
+        with open(f"storage/prompts/{prompt_filename}", 'w') as file:
+            file.write(script_prompt)
+
+        print(f"Script generation is not yet available. Please go to Grok or another AI model and generate a script using the prompt in {prompt_filename}.")
+        return  # Exit the function if the user chooses not to proceed
+
     else:
-        user_input = input("Enter the text you want to convert to speech: ")
-        prompt_filename = None
-    
+        print("Invalid choice. Exiting.")
+        return
+
     voices = fetch_voice_ids()
     
     if not voices:
@@ -136,7 +194,6 @@ def main():
     # Display voice options
     print("Available Voices:")
     for index, voice in enumerate(voices):
-        # Access the voice dictionary correctly
         print(f"{index + 1}: {voice['name']} (ID: {voice['voice_id']})")
     
     # Prompt user to select a voice
@@ -144,7 +201,7 @@ def main():
     selected_voice_id = voices[choice]['voice_id']
     
     # Perform text-to-speech conversion
-    text_to_speech(selected_voice_id, user_input, prompt_filename)
+    text_to_speech(selected_voice_id, user_input, script_filename)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
