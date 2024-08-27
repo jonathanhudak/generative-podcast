@@ -6,7 +6,36 @@
     <title>Podcast Script Generator</title>
   </head>
   <body>
-    <h1>Podcast Script Generator</h1>
+    <h2>Data Overview</h2>
+
+    <h3>Voices</h3>
+    <ul>
+      {% for voice in voices %}
+      <li>{{ voice.name }} (ID: {{ voice.voice_id }})</li>
+      {% endfor %}
+    </ul>
+
+    <h3>Prompts</h3>
+    <ul>
+      {% for prompt in prompts %}
+      <li>{{ prompt }}</li>
+      {% endfor %}
+    </ul>
+
+    <h3>Scripts</h3>
+    <ul>
+      {% for script in scripts %}
+      <li>{{ script }}</li>
+      {% endfor %}
+    </ul>
+
+    <h3>Podcasts</h3>
+    <ul>
+      {% for podcast in podcasts %}
+      <li>{{ podcast }}</li>
+      {% endfor %}
+    </ul>
+    <h2>Podcast Script Generator</h2>
     <form id="promptForm">
       <label for="topic">Enter Topic:</label>
       <input type="text" id="topic" name="topic" required />

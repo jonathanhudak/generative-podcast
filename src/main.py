@@ -242,7 +242,21 @@ def get_script_options():
 # FastAPI endpoints
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    voices = fetch_voice_ids()
+    prompt_files = glob.glob('storage/prompts/*.md')
+    prompts = [os.path.basename(file).replace('.md', '') for file in prompt_files]
+    script_files = glob.glob('storage/scripts/*.md')
+    scripts = [os.path.basename(file).replace('.md', '') for file in script_files]
+    audio_files = glob.glob('storage/audio/output/*.mp3')
+    podcasts = [os.path.basename(file) for file in audio_files]
+
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "voices": voices,
+        "prompts": prompts,
+        "scripts": scripts,
+        "podcasts": podcasts
+    })
 
 @app.post("/create_prompt")
 async def api_create_prompt(request: PromptRequest):
@@ -254,10 +268,28 @@ async def api_generate_script(request: ScriptRequest):
     script = await generate_script(request.prompt)
     return {"message": "Script generated", "script": script}
 
-@app.get("/fetch_voices")
+@app.get("/voices")
 def api_fetch_voices():
     voices = fetch_voice_ids()
     return {"voices": voices}
+
+@app.get("/prompts")
+def api_get_prompts():
+    prompt_files = glob.glob('storage/prompts/*.md')
+    prompts = [os.path.basename(file).replace('.md', '') for file in prompt_files]
+    return {"prompts": prompts}
+
+@app.get("/scripts")
+def api_get_scripts():
+    script_files = glob.glob('storage/scripts/*.md')
+    scripts = [os.path.basename(file).replace('.md', '') for file in script_files]
+    return {"scripts": scripts}
+
+@app.get("/podcasts")
+def api_get_audio_files():
+    audio_files = glob.glob('storage/audio/output/*.mp3')
+    podcasts = [os.path.basename(file) for file in audio_files]
+    return {"podcasts": podcasts}
     
 # Function to generate the podcast from an existing script
 async def generate_podcast_from_script():
