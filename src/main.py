@@ -87,7 +87,7 @@ def fetch_voice_ids():
         return []
 
 # Function to perform text-to-speech conversion
-def text_to_speech(voice_id, text, prompt_filename=None):
+def text_to_speech(voice_id, text, script_filename=None):
     tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
     headers = {
         "Accept": "application/json",
@@ -110,8 +110,8 @@ def text_to_speech(voice_id, text, prompt_filename=None):
     if response.ok:
         # Generate a timestamped filename with prompt filename if provided
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        prompt_suffix = f"_{prompt_filename.replace('.md', '')}" if prompt_filename else ""
-        output_path = f"storage/audio/output/{prompt_suffix}_{timestamp}.mp3"
+        podcast_suffix = f"{script_filename.replace('.md', '')}" if script_filename else ""
+        output_path = f"storage/audio/output/{podcast_suffix}_{timestamp}.mp3"
         
         with open(output_path, "wb") as f:
             total_length = response.headers.get('content-length')
@@ -330,6 +330,7 @@ async def generate_podcast_from_script():
     selected_voice_id = voices[choice]['voice_id']
     
     # Perform text-to-speech conversion
+    script_filename = os.path.basename(script_filename).replace('.md', '')  # Get the last segment without extension
     text_to_speech(selected_voice_id, user_input, script_filename)
 
 async def main():
@@ -358,4 +359,3 @@ if __name__ == "__main__":
         uvicorn.run("main:app", host="127.0.0.1", port=5432)
     else:
         print("Invalid mode. Exiting.")
-    main(mode)  # Call main without asyncio.run
