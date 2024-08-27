@@ -341,7 +341,8 @@ async def main():
     action_choice = int(input("Enter your choice (1, 2, or 3): "))
     
     if action_choice == 1:
-        await create_script_prompt()
+        topic = input("Enter a topic for the script prompt: ")
+        await create_script_prompt(topic)
     elif action_choice == 2:
         await generate_script_from_prompt()
     elif action_choice == 3:
