@@ -10,6 +10,7 @@ from anthropic import AsyncAnthropic
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel
 templates = Jinja2Templates(directory="src/templates")  # Set the template directory
@@ -29,6 +30,16 @@ os.makedirs('storage/audio/output', exist_ok=True)
 os.makedirs('storage/scripts', exist_ok=True)
 
 app = FastAPI()
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Adjust this to your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
+
 anthropic_client = AsyncAnthropic()
 
 # Pydantic models for request bodies
@@ -355,8 +366,3 @@ if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "web"  # Default to web mode
     if mode == "cli":
         asyncio.run(main())
-    elif mode == "web":
-        import uvicorn
-        uvicorn.run("main:app", host="127.0.0.1", port=5432)
-    else:
-        print("Invalid mode. Exiting.")
