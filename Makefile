@@ -1,6 +1,6 @@
 # Makefile for running the main application and tests
 
-.PHONY: ev test cli api svelte
+.PHONY: ev test cli api svelte types setup_types
 
 dev:
 	python3 src/main.py
@@ -19,3 +19,9 @@ api:
 svelte:
 	@echo "Starting Svelte app..."
 	cd web && npm run dev
+
+type_types:
+	npm install -g json-schema-to-typescript
+
+types:
+	pydantic2ts --module ./gen_podcast/models.py --output ./web/src/lib/types/api.ts

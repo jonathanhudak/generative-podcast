@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from .models import PromptRequest, ScriptRequest, VoiceResponse, PromptResponse, ScriptResponse, PodcastResponse
 
 from pydantic import BaseModel
 templates = Jinja2Templates(directory="src/templates")  # Set the template directory
@@ -41,13 +42,6 @@ app.add_middleware(
 )
 
 anthropic_client = AsyncAnthropic()
-
-# Pydantic models for request bodies
-class PromptRequest(BaseModel):
-    topic: str
-
-class ScriptRequest(BaseModel):
-    prompt: str
 
 # Function to write data to a file
 def write_to_file(filename, data):
@@ -279,24 +273,24 @@ async def api_generate_script(request: ScriptRequest):
     script = await generate_script(request.prompt)
     return {"message": "Script generated", "script": script}
 
-@app.get("/voices")
+@app.get("/voices", response_model=VoiceResponse)
 def api_fetch_voices():
     voices = fetch_voice_ids()
     return {"voices": voices}
 
-@app.get("/prompts")
+@app.get("/prompts", response_model=PromptResponse)
 def api_get_prompts():
     prompt_files = glob.glob('storage/prompts/*.md')
     prompts = [os.path.basename(file).replace('.md', '') for file in prompt_files]
     return {"prompts": prompts}
 
-@app.get("/scripts")
+@app.get("/scripts", response_model=ScriptResponse)
 def api_get_scripts():
     script_files = glob.glob('storage/scripts/*.md')
     scripts = [os.path.basename(file).replace('.md', '') for file in script_files]
     return {"scripts": scripts}
 
-@app.get("/podcasts")
+@app.get("/podcasts", response_model=PodcastResponse)
 def api_get_audio_files():
     audio_files = glob.glob('storage/audio/output/*.mp3')
     podcasts = [os.path.basename(file) for file in audio_files]
