@@ -1,8 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 
-
-
 # Pydantic models for request bodies
 class PromptRequest(BaseModel):
     topic: str
@@ -26,11 +24,23 @@ class Voice(BaseModel):
 class VoiceResponse(BaseModel):
     voices: List[Voice]
 
+class PromptItem(BaseModel):
+    name: str
+    id: str
+
+class ScriptItem(BaseModel):
+    name: str
+    id: str
+
+class PodcastItem(BaseModel):
+    name: str
+    id: str
+
 class PromptResponse(BaseModel):
-    prompts: list
+    prompts: List[PromptItem]  # List of PromptItem objects
 
 class ScriptResponse(BaseModel):
-    scripts: list
+    scripts: List[ScriptItem]  # List of ScriptItem objects
 
 class PodcastResponse(BaseModel):
-    podcasts: list
+    podcasts: List[PodcastItem]  # List of PodcastItem objects

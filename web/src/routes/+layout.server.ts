@@ -1,4 +1,5 @@
 import type { Voice } from '$lib/types/Voices';
+import type { PodcastResponse, PromptResponse, ScriptResponse } from '$lib/types/api';
 
 // New reusable function for GET requests
 async function fetchData<T>(path: string): Promise<T> {
@@ -10,9 +11,9 @@ async function fetchData<T>(path: string): Promise<T> {
 /** @type {import('./$types').PageServerLoad} */
 export async function load() {
 	return {
-		...(await fetchData<{ podcasts: { id: string }[] }>('/podcasts')),
-		...(await fetchData<{ voices: Voice[] }>('/voices')),
-		...(await fetchData<{ prompts: { id: string }[] }>('/prompts')),
-		...(await fetchData<{ scripts: { id: string }[] }>('/scripts'))
+		...(await fetchData<PodcastResponse>('/podcasts')),
+		...(await fetchData<VoiceResponse>('/voices')),
+		...(await fetchData<PromptResponse>('/prompts')),
+		...(await fetchData<ScriptResponse>('/scripts'))
 	};
 }

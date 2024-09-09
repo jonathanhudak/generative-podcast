@@ -5,20 +5,32 @@
 /* Do not modify it by hand - just update the pydantic models and then re-run the script
 */
 
+export interface PodcastItem {
+  name: string;
+  id: string;
+}
 export interface PodcastResponse {
-  podcasts: unknown[];
+  podcasts: PodcastItem[];
+}
+export interface PromptItem {
+  name: string;
+  id: string;
 }
 export interface PromptRequest {
   topic: string;
 }
 export interface PromptResponse {
-  prompts: unknown[];
+  prompts: PromptItem[];
+}
+export interface ScriptItem {
+  name: string;
+  id: string;
 }
 export interface ScriptRequest {
   prompt: string;
 }
 export interface ScriptResponse {
-  scripts: unknown[];
+  scripts: ScriptItem[];
 }
 export interface Voice {
   voice_id: string;

@@ -17,7 +17,7 @@
 	import { createEventDispatcher } from 'svelte';
 
 	import { Section } from 'flowbite-svelte-blocks';
-	import paginationData from './data.json';
+
 	import {
 		PlusOutline,
 		ChevronDownOutline,
@@ -27,7 +27,7 @@
 	} from 'flowbite-svelte-icons';
 
 	let divClass: string =
-		'bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden';
+		'bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden px-0';
 	let innerDivClass: string =
 		'flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4';
 	let searchClass: string = 'w-full md:w-1/2 relative';
@@ -50,7 +50,7 @@
 	let totalPages: number = 0;
 	let pagesToShow: number[] = [];
 	let searchTerm: string = '';
-	let totalItems: number = paginationData.length;
+	let totalItems: number = data.length;
 	let startPage: number;
 	let endPage: number;
 
@@ -105,7 +105,7 @@
 	$: onFilter(searchTerm);
 </script>
 
-<Section name="advancedTable" classSection="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5">
+<Section name="advancedTable" classSection="dark:bg-gray-900">
 	<TableSearch
 		placeholder="Search"
 		hoverable={true}
@@ -120,7 +120,7 @@
 			class="flex w-full flex-shrink-0 flex-col items-stretch justify-end space-y-2 md:w-auto md:flex-row md:items-center md:space-x-3 md:space-y-0"
 		>
 			<Button on:click={onAdd}>
-				<PlusOutline class="mr-2 h-3.5 w-3.5" />Add product
+				<PlusOutline class="mr-2 h-3.5 w-3.5" />Add
 			</Button>
 			<Button color="alternative">Actions<ChevronDownOutline class="ml-2 h-3 w-3 " /></Button>
 			<Dropdown class="w-44 divide-y divide-gray-100">

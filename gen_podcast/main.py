@@ -281,19 +281,19 @@ def api_fetch_voices():
 @app.get("/prompts", response_model=PromptResponse)
 def api_get_prompts():
     prompt_files = glob.glob('storage/prompts/*.md')
-    prompts = [os.path.basename(file).replace('.md', '') for file in prompt_files]
+    prompts = [{"name": os.path.basename(file).replace('.md', ''), "id": os.path.basename(file).replace('.md', '')} for file in prompt_files]
     return {"prompts": prompts}
 
 @app.get("/scripts", response_model=ScriptResponse)
 def api_get_scripts():
     script_files = glob.glob('storage/scripts/*.md')
-    scripts = [os.path.basename(file).replace('.md', '') for file in script_files]
+    scripts = [{"name": os.path.basename(file).replace('.md', ''), "id": os.path.basename(file).replace('.md', '')} for file in script_files]
     return {"scripts": scripts}
 
 @app.get("/podcasts", response_model=PodcastResponse)
 def api_get_audio_files():
     audio_files = glob.glob('storage/audio/output/*.mp3')
-    podcasts = [os.path.basename(file) for file in audio_files]
+    podcasts = [{"name": os.path.basename(file), "id": os.path.basename(file)} for file in audio_files]
     return {"podcasts": podcasts}
     
 # Function to generate the podcast from an existing script

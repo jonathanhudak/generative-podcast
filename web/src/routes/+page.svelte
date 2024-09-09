@@ -1,20 +1,17 @@
 <script>
-	export let data;
 	import { Alert } from 'flowbite-svelte';
-	import VoicesTable from '$lib/components/VoicesTable.svelte';
+	import SvelteMarkdown from 'svelte-markdown';
 </script>
 
-<h1>Gen Podcast</h1>
-
 <main>
-	<div class="p-8">
-		<Alert>
-			<span class="font-medium">Info alert!</span>
-			Change a few things up and try submitting again.
-		</Alert>
-	</div>
-	<VoicesTable voicesData={data.voices} />
-	<pre>
-	{JSON.stringify(data, null, 2)}
-</pre>
+	<SvelteMarkdown
+		source={`
+  # A Podcast Generator
+
+Have an idea for a short podcast you would like to hear? Type your idea to generate a podcast script and produce your own audio podcast. Choose from a variety of quality voices.
+`}
+	/>
+	<Alert color="blue">
+		<span class="font-medium">Work in progress!</span>
+	</Alert>
 </main>

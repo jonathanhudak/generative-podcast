@@ -1,17 +1,10 @@
 <script lang="ts">
 	import Table from '$lib/components/Table.svelte';
-	export let voicesData;
-
-	type Voice = {
-		voice_id: string;
-		name: string;
-		id: string;
-		// Add other properties as needed
-	};
-
-	let voices: Voice[] = voicesData; // Extract voices array from JSON
+	import type { Voice } from '$lib/types/Voices';
+	export let voicesData: Voice[];
+	let voices: Voice[] = voicesData;
 	let displayKeys: (keyof Voice)[] = ['name', 'voice_id']; // Specify which keys to display
-
+	type T = $$Generic<{ scripts: typeof voicesData }>;
 	const handleAdd = () => {
 		// Logic for adding a new voice
 	};
