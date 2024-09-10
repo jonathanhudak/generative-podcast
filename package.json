@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "carta-md": "^4.4.5",
-    "marked": "^14.1.2",
-    "svelte-markdown": "^0.4.1"
-  }
-}
