@@ -1,27 +1,41 @@
 <script lang="ts">
-	import Table from '$lib/components/Table.svelte'; // Import the Table component
+	import {
+		Table,
+		TableBody,
+		TableBodyCell,
+		TableBodyRow,
+		TableHead,
+		TableHeadCell
+	} from 'flowbite-svelte';
 	import type { ScriptItem } from '$lib/types/api';
-
 	export let scriptsData: ScriptItem[];
 
-	let displayKeys: (keyof ScriptItem)[] = ['name', 'id']; // Specify which keys to display
+	// Function to create a link for each prompt
+	function createScriptLink(prompt: ScriptItem) {
+		return {
+			...prompt,
+			link: `/resource/script/${prompt.id}`
+		};
+	}
 
-	type T = $$Generic<{ scripts: Script[] }>;
+	const linkedScriptsData = scriptsData.map(createScriptLink);
 </script>
 
-<Table
-	data={scriptsData.map((script) => ({ name: script.name, id: script.id }))}
-	{displayKeys}
-	onAdd={() => {
-		/* handle add action */
-	}}
-	onMassEdit={() => {
-		/* handle mass edit action */
-	}}
-	onDeleteAll={() => {
-		/* handle delete all action */
-	}}
-	onFilter={(searchTerm) => {
-		/* handle filter action */
-	}}
-/>
+<Table striped={true}>
+	<TableHead>
+		<TableHeadCell>Name</TableHeadCell>
+		<TableHeadCell>ID</TableHeadCell>
+		<TableHeadCell>Created At</TableHeadCell>
+	</TableHead>
+	<TableBody>
+		{#each linkedScriptsData as script}
+			<TableBodyRow>
+				<TableBodyCell>
+					<a href={script.link} class="text-blue-600 hover:underline">{script.name}</a>
+				</TableBodyCell>
+				<TableBodyCell>{script.id}</TableBodyCell>
+				<!-- <TableBodyCell>{new Date(prompt.created_at).toLocaleString()}</TableBodyCell> -->
+			</TableBodyRow>
+		{/each}
+	</TableBody>
+</Table>

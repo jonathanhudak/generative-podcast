@@ -1,23 +1,41 @@
 <script lang="ts">
-	import Table from '$lib/components/Table.svelte'; // Import the Table component
+	import {
+		Table,
+		TableBody,
+		TableBodyCell,
+		TableBodyRow,
+		TableHead,
+		TableHeadCell
+	} from 'flowbite-svelte';
 	import type { PromptItem } from '$lib/types/api';
 	export let promptsData: PromptItem[];
-	type T = $$Generic<PromptItem[]>;
+
+	// Function to create a link for each prompt
+	function createPromptLink(prompt: PromptItem) {
+		return {
+			...prompt,
+			link: `/resource/prompt/${prompt.id}`
+		};
+	}
+
+	const linkedPromptsData = promptsData.map(createPromptLink);
 </script>
 
-<Table
-	data={promptsData.map((prompt) => ({ name: prompt.name, id: prompt.id }))}
-	displayKeys={['name', 'id']}
-	onAdd={() => {
-		/* handle add action */
-	}}
-	onMassEdit={() => {
-		/* handle mass edit action */
-	}}
-	onDeleteAll={() => {
-		/* handle delete all action */
-	}}
-	onFilter={(searchTerm) => {
-		/* handle filter action */
-	}}
-/>
+<Table striped={true}>
+	<TableHead>
+		<TableHeadCell>Name</TableHeadCell>
+		<TableHeadCell>ID</TableHeadCell>
+		<TableHeadCell>Created At</TableHeadCell>
+	</TableHead>
+	<TableBody>
+		{#each linkedPromptsData as prompt}
+			<TableBodyRow>
+				<TableBodyCell>
+					<a href={prompt.link} class="text-blue-600 hover:underline">{prompt.name}</a>
+				</TableBodyCell>
+				<TableBodyCell>{prompt.id}</TableBodyCell>
+				<!-- <TableBodyCell>{new Date(prompt.created_at).toLocaleString()}</TableBodyCell> -->
+			</TableBodyRow>
+		{/each}
+	</TableBody>
+</Table>

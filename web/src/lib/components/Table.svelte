@@ -60,7 +60,7 @@
 	};
 
 	const loadNextPage = (): void => {
-		if (currentPosition + itemsPerPage < paginationData.length) {
+		if (currentPosition + itemsPerPage < data.length) {
 			currentPosition += itemsPerPage;
 			updateDataAndPagination();
 		}
@@ -74,7 +74,7 @@
 	};
 
 	const renderPagination = (totalItems: number): void => {
-		totalPages = Math.ceil(paginationData.length / itemsPerPage);
+		totalPages = Math.ceil(data.length / itemsPerPage);
 		const currentPage: number = Math.ceil((currentPosition + 1) / itemsPerPage);
 
 		startPage = currentPage - Math.floor(showPage / 2);
@@ -93,7 +93,7 @@
 	$: endRange = Math.min(currentPosition + itemsPerPage, totalItems);
 
 	onMount((): void => {
-		renderPagination(paginationData.length);
+		renderPagination(data.length);
 	});
 
 	$: currentPageItems = data.slice(currentPosition, currentPosition + itemsPerPage);

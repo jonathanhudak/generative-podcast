@@ -1,5 +1,9 @@
-import type { Voice } from '$lib/types/Voices';
-import type { PodcastResponse, PromptResponse, ScriptResponse } from '$lib/types/api';
+import type {
+	VoiceResponse,
+	PodcastResponse,
+	PromptResponse,
+	ScriptResponse
+} from '$lib/types/api';
 
 // New reusable function for GET requests
 async function fetchData<T>(path: string): Promise<T> {

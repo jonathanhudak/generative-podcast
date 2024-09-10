@@ -8,7 +8,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from .models import PromptRequest, ScriptRequest, VoiceResponse, PromptResponse, ScriptResponse, PodcastResponse
@@ -139,20 +139,32 @@ async def generate_prompt(topic):
     async with anthropic_client.messages.stream(
         model=MODEL_NAME,
         max_tokens=1024,
-        system="You are an AI prompt engineer that generates prompts that will result in a professional script for solo podcast episodes. The script should be written without any directives in a way that can be read aloud as-is. Please use the <topic> tag to determine the podcast episode topic and add unique and specific additions to the prompt topic to the resulting prompt.",
+        system="""
+
+You are an AI prompt engineer that generates prompts that will result in a professional script for solo podcast episodes.
+The script should be written without any directives in a way that can be read aloud as-is.
+Please use the <topic> tag to determine the podcast episode topic and add unique and specific additions to the prompt topic to the resulting prompt.
+Return only the prompt and nothing else.
+
+""",
         messages=[
             {"role": "user", "content": f"<topic>{topic}</topic>"}
         ]
     ) as stream:
+        full_response = ""
         async for text in stream.text_stream:
-            print(text, end="", flush=True)
-        print()
+            full_response += text
+            yield text
     
-    message = await stream.get_final_message()
-    print(message.to_json())
-    prompt_result = message.content[0].text
-    print(f"Generated Prompt: {prompt_result}")
-    return prompt_result
+    # Save the generated prompt to a file
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    formatted_topic = topic.replace(" ", "_").lower()
+    prompt_filename = f"{formatted_topic}_{timestamp}.md"
+    with open(f"storage/prompts/{prompt_filename}", 'w') as file:
+        file.write(full_response)
+    
+    print(f"Generated Prompt: {full_response}")
+    print(f"Prompt saved as {prompt_filename}")
 
 async def generate_script(prompt):
     async with anthropic_client.messages.stream(
@@ -265,8 +277,7 @@ async def read_root(request: Request):
 
 @app.post("/create_prompt")
 async def api_create_prompt(request: PromptRequest):
-    filename = await create_script_prompt(request.topic)
-    return {"message": "Script prompt generated", "filename": filename}
+    return StreamingResponse(generate_prompt(request.topic), media_type="text/event-stream")
 
 @app.post("/generate_script")
 async def api_generate_script(request: ScriptRequest):
@@ -337,6 +348,26 @@ async def generate_podcast_from_script():
     # Perform text-to-speech conversion
     script_filename = os.path.basename(script_filename).replace('.md', '')  # Get the last segment without extension
     text_to_speech(selected_voice_id, user_input, script_filename)
+
+@app.get("/prompts/{prompt_id}", response_class=PlainTextResponse)
+async def get_prompt_content(prompt_id: str):
+    prompt_path = f"storage/prompts/{prompt_id}.md"
+    try:
+        with open(prompt_path, "r") as file:
+            content = file.read()
+        return content
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
+@app.get("/scripts/{script_id}", response_class=PlainTextResponse)
+async def get_script_content(script_id: str):
+    script_path = f"storage/scripts/{script_id}.md"
+    try:
+        with open(script_path, "r") as file:
+            content = file.read()
+        return content
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Script not found")
 
 async def main():
     print("Select an option:")
