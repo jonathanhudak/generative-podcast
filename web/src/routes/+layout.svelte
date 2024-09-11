@@ -1,8 +1,8 @@
 <script lang="ts">
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import '../app.postcss';
-	import 'flowbite/dist/flowbite.css';
-	import 'carta-md/default.css';
+	// import 'flowbite/dist/flowbite.css';
+	// import 'carta-md/default.css';
 </script>
 
 <div class="app">

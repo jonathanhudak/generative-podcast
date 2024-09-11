@@ -1,17 +1,12 @@
 <script lang="ts">
 	import CreatePrompt from '$lib/components/CreatePrompt.svelte';
-	import { Alert } from 'flowbite-svelte';
-	import SvelteMarkdown from 'svelte-markdown';
+	import { Heading, P, Button } from 'flowbite-svelte';
 </script>
 
 <main>
-	<h1>Generate Podcast Prompt</h1>
-	<SvelteMarkdown
-		source={`
-  # Podcast Generator
+	<Heading tag="h1" class="mb-4" customSize="text-4xl font-extrabold  md:text-5xl lg:text-6xl"
+		>Generate a podcast</Heading
+	>
 
-Have an idea for a short podcast you would like to hear? Type your idea to generate a podcast script and produce your own audio podcast. Choose from a variety of quality voices.
-`}
-	/>
 	<CreatePrompt />
 </main>

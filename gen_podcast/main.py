@@ -4,6 +4,7 @@ import os
 import glob
 import sys
 import asyncio
+import random 
 from datetime import datetime
 from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
@@ -180,9 +181,7 @@ async def generate_script(prompt):
         print()
     
     message = await stream.get_final_message()
-    print(message.to_json())
     prompt_result = message.content[0].text
-    print(f"Generated Script: {prompt_result}")
     return prompt_result
 
 # Function to create a new script prompt
@@ -368,6 +367,62 @@ async def get_script_content(script_id: str):
         return content
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Script not found")
+
+# Function to cache random topics, appending new topics to the existing list
+def cache_random_topics(new_topics):
+    cache_file = 'storage/cache/random_topics.json'
+    
+    # Load existing topics if the cache file exists
+    if os.path.exists(cache_file):
+        cached_data = read_from_file(cache_file)
+        existing_topics = cached_data["topics"]
+    else:
+        existing_topics = []
+
+    # Append new topics to the existing list and remove duplicates
+    combined_topics = list(set(existing_topics + new_topics))
+    write_to_file(cache_file, {"topics": combined_topics})  # Cache the combined topics
+
+# Update the api_get_random_topics function
+@app.get("/random_topics")
+async def api_get_random_topics(get_fresh_topics: bool = False):  # Add a query parameter
+    cache_file = 'storage/cache/random_topics.json'
+    
+    # Load cached topics if available
+    if os.path.exists(cache_file):
+        cached_data = read_from_file(cache_file)
+        cached_topics = cached_data["topics"]
+    else:
+        cached_topics = []
+
+    if get_fresh_topics:  # Check if the query parameter is set to True
+        async with anthropic_client.messages.stream(
+            model=MODEL_NAME,
+            max_tokens=2048,
+            messages=[
+                {"role": "user", "content": """
+Generate a list of 15 concise and interesting topics for short 5 minute podcasts. The topics should be wide ranging diverse and fascinating.
+Return only the list as a JSON array and nothing else.
+"""}
+            ]
+        ) as stream:
+            async for text in stream.text_stream:
+                print(text, end="", flush=True)
+            print()
+        
+        message = await stream.get_final_message()
+        new_topics = json.loads(message.content[0].text)  # Parse JSON string into a list
+        cache_random_topics(new_topics)  # Cache the new topics
+
+        # Combine cached and new topics
+        combined_topics = list(set(cached_topics + new_topics))
+    else:
+        combined_topics = cached_topics  # Use cached topics only
+
+    # Select up to 15 random topics from the combined list
+    random_topics = random.sample(combined_topics, min(15, len(combined_topics)))
+
+    return {"topics": random_topics}
 
 async def main():
     print("Select an option:")
