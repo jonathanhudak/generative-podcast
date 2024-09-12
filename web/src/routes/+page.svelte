@@ -1,5 +1,5 @@
 <script lang="ts">
-	import CreatePrompt from '$lib/components/CreatePrompt.svelte';
+	import CreatePodcastWizard from '$lib/components/CreatePodcastWizard.svelte';
 	import { Heading, P, Button } from 'flowbite-svelte';
 </script>
 
@@ -8,5 +8,5 @@
 		>Generate a podcast</Heading
 	>
 
-	<CreatePrompt />
+	<CreatePodcastWizard />
 </main>

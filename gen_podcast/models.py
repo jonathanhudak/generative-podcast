@@ -7,6 +7,7 @@ class PromptRequest(BaseModel):
 
 class ScriptRequest(BaseModel):
     prompt: str
+    topic: str
 
 class VoiceLabel(BaseModel):
     accent: str
@@ -44,3 +45,9 @@ class ScriptResponse(BaseModel):
 
 class PodcastResponse(BaseModel):
     podcasts: List[PodcastItem]  # List of PodcastItem objects
+
+class PodcastRequest(BaseModel):
+    title: str  # New title field
+    script: str
+    voice_id: str = None  # Optional field
+    # Add more fields as needed in the future

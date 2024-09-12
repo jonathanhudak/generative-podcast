@@ -23,18 +23,23 @@
 
 <Table striped={true}>
 	<TableHead>
-		<TableHeadCell>Title</TableHeadCell>
 		<TableHeadCell>ID</TableHeadCell>
-		<TableHeadCell>Created At</TableHeadCell>
+		<!-- <TableHeadCell>Created At</TableHeadCell> -->
+		<TableHeadCell>Audio</TableHeadCell>
+		<!-- New column for audio -->
 	</TableHead>
 	<TableBody>
 		{#each linkedPodcastsData as podcast}
 			<TableBodyRow>
-				<TableBodyCell>
-					<a href={podcast.link} class="text-blue-600 hover:underline">{podcast.title}</a>
-				</TableBodyCell>
 				<TableBodyCell>{podcast.id}</TableBodyCell>
-				<TableBodyCell>{new Date(podcast.created_at).toLocaleString()}</TableBodyCell>
+				<!-- <TableBodyCell>{new Date(podcast.created_at).toLocaleString()}</TableBodyCell> -->
+				<TableBodyCell>
+					<audio controls>
+						<source src={`http://127.0.0.1:5432/audio/${podcast.id}`} type="audio/mpeg" />
+						Your browser does not support the audio element.
+					</audio>
+				</TableBodyCell>
+				<!-- New audio element -->
 			</TableBodyRow>
 		{/each}
 	</TableBody>

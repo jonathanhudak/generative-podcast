@@ -12,7 +12,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from .models import PromptRequest, ScriptRequest, VoiceResponse, PromptResponse, ScriptResponse, PodcastResponse
+from .models import PromptRequest, ScriptRequest, VoiceResponse, PromptResponse, ScriptResponse, PodcastResponse, PodcastRequest
+from urllib.parse import unquote  # Import unquote for URL decoding
+import re
 
 from pydantic import BaseModel
 templates = Jinja2Templates(directory="src/templates")  # Set the template directory
@@ -44,6 +46,21 @@ app.add_middleware(
 
 anthropic_client = AsyncAnthropic()
 
+def safe_filename(title: str) -> str:
+    # Remove colons and question marks
+    title = title.replace(':', '').replace('?', '')
+    
+    # Replace spaces with underscores
+    title = title.replace(' ', '_')
+    
+    # Remove any characters that are not alphanumeric, underscores, or hyphens
+    title = re.sub(r'[^a-zA-Z0-9_-]', '', title)
+    
+    # Optionally, you can also normalize the title to handle special characters
+    # title = unidecode(title)  # Uncomment if you want to normalize accented characters
+
+    return title
+    
 # Function to write data to a file
 def write_to_file(filename, data):
     with open(filename, 'w') as file:
@@ -93,7 +110,7 @@ def fetch_voice_ids():
         return []
 
 # Function to perform text-to-speech conversion
-def text_to_speech(voice_id, text, script_filename=None):
+def text_to_speech(voice_id, text, filename=None):
     tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
     headers = {
         "Accept": "application/json",
@@ -111,29 +128,38 @@ def text_to_speech(voice_id, text, script_filename=None):
         }
     }
     
+    print(f"Sending request to TTS API at {tts_url} with voice_id: {voice_id}")
+    
     response = requests.post(tts_url, headers=headers, json=data, stream=True)
     
     if response.ok:
+        print("Received successful response from TTS API.")
+        
         # Generate a timestamped filename with prompt filename if provided
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        podcast_suffix = f"{script_filename.replace('.md', '')}" if script_filename else ""
-        output_path = f"storage/audio/output/{podcast_suffix}_{timestamp}.mp3"
+        output_filename = f"{filename}_{timestamp}.mp3"
+        output_path = f"storage/audio/output/{output_filename}"
+        
+        print(f"Saving audio stream to {output_path}...")
         
         with open(output_path, "wb") as f:
             total_length = response.headers.get('content-length')
             if total_length is None:  # No content length header
+                print("No content length header found, writing content directly.")
                 f.write(response.content)
             else:
                 total_length = int(total_length)
+                print(f"Total content length: {total_length} bytes.")
                 for chunk in response.iter_content(chunk_size=1024):
                     f.write(chunk)
                     done = int(50 * f.tell() / total_length)
                     sys.stdout.write(f"\r[{'█' * done}{' ' * (50 - done)}] {done * 2}%")
                     sys.stdout.flush()
         print("\nAudio stream saved successfully.")
+        return output_filename
     else:
         print("Failed to convert text to speech. Response:", response.text)
-
+        print(f"Status Code: {response.status_code}, Headers: {response.headers}")
 
 # Function to generate a prompt using Anthropic's Sonnet 3.5
 async def generate_prompt(topic):
@@ -159,7 +185,7 @@ Return only the prompt and nothing else.
     
     # Save the generated prompt to a file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    formatted_topic = topic.replace(" ", "_").lower()
+    formatted_topic = safe_filename(topic.replace(" ", "_").lower())
     prompt_filename = f"{formatted_topic}_{timestamp}.md"
     with open(f"storage/prompts/{prompt_filename}", 'w') as file:
         file.write(full_response)
@@ -167,38 +193,60 @@ Return only the prompt and nothing else.
     print(f"Generated Prompt: {full_response}")
     print(f"Prompt saved as {prompt_filename}")
 
-async def generate_script(prompt):
+async def generate_script(prompt, topic):
+    if not prompt:
+        raise ValueError("Prompt cannot be empty.")
+    if not topic:
+        raise ValueError("Topic cannot be empty.")
+    
+    print("Starting script generation...")
+    full_script = ""  # Initialize a variable to hold the full script
     async with anthropic_client.messages.stream(
         model=MODEL_NAME,
         max_tokens=2048,
-        system="You are a professional podcast script writer. You will be given a prompt and you will write a script for a podcast episode based on the prompt. The script should be written without any directives in a way that can be read aloud as-is.",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
+        system="""
+You are a professional podcast script writer.
+You will be given a prompt and you will write a script for a podcast episode based on the prompt.
+The script should be written without any directives in a way that can be read aloud as-is.
+Keep the script fairly short and sweet. Reading time should be no longer than 4-5 minutes.
+""",
+        messages=[{"role": "user", "content": prompt}]
     ) as stream:
         async for text in stream.text_stream:
-            print(text, end="", flush=True)
-        print()
-    
-    message = await stream.get_final_message()
-    prompt_result = message.content[0].text
-    return prompt_result
+            print("Received chunk:", text)  # Log each chunk received
+            full_script += text  # Accumulate the script text
+            yield text  # Stream the text as it is received
 
-# Function to create a new script prompt
+    print("Script generation completed.")
+    
+    # Save the resulting script to a file after streaming is complete
+    await save_script_to_file(full_script, topic)
+
 async def create_script_prompt(topic):
     script_prompt = await generate_prompt(topic)
     
     # Generate a timestamped filename using the topic
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    formatted_topic = topic.replace(" ", "_").lower()  # Format topic for filename
+    formatted_topic = safe_filename(topic.replace(" ", "_")).lower()  # Format topic for filename
     prompt_filename = f"{formatted_topic}_{timestamp}.md"
 
     # Save the generated script prompt to a file
-    with open(f"storage/prompts/{prompt_filename}", 'w') as file:
-        file.write(script_prompt)
+    await save_script_to_file(script_prompt, topic, prompt_filename)
 
     print(f"Script prompt generated and saved as {prompt_filename}.")
     return prompt_filename
+
+async def save_script_to_file(script_content, topic, filename=None):
+    if filename is None:
+        # Generate a default filename if not provided
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        formatted_topic = safe_filename(topic.replace(" ", "_").lower())  # Format topic for filename
+        filename = f"{formatted_topic}_{timestamp}.md"
+    
+    # Save the script content to the specified file
+    with open(f"storage/scripts/{filename}", 'w') as file:
+        file.write(script_content)
+    print(f"Script saved as {filename}.")
 
 def get_prompt_options():
     prompt_files = glob.glob('storage/prompts/*.md')
@@ -280,8 +328,7 @@ async def api_create_prompt(request: PromptRequest):
 
 @app.post("/generate_script")
 async def api_generate_script(request: ScriptRequest):
-    script = await generate_script(request.prompt)
-    return {"message": "Script generated", "script": script}
+    return StreamingResponse(generate_script(request.prompt, request.topic), media_type="text/event-stream")
 
 @app.get("/voices", response_model=VoiceResponse)
 def api_fetch_voices():
@@ -423,6 +470,58 @@ Return only the list as a JSON array and nothing else.
     random_topics = random.sample(combined_topics, min(15, len(combined_topics)))
 
     return {"topics": random_topics}
+
+@app.post("/create_podcast")
+async def api_create_podcast(request: PodcastRequest):
+    
+    # Extract the title, script, and voice_id from the request
+    title = request.title  # New title parameter
+    script = request.script
+    voice_id = request.voice_id
+
+    if not title:
+        raise ValueError("title cannot be empty.")
+    if not script:
+        raise ValueError("script cannot be empty.")
+    
+    # Fetch voice IDs
+    voices = fetch_voice_ids()
+    if not voices:
+        raise HTTPException(status_code=400, detail="No voices available for TTS.")
+
+    # Use the provided voice_id or default to the first voice
+    if voice_id is None:
+        voices = fetch_voice_ids()
+
+        if not voices:
+            raise HTTPException(status_code=400, detail="No voices available for TTS.")
+
+        selected_voice_id = voices[0]['voice_id']
+    else:
+        # Check if the provided voice_id is valid
+        if not any(voice['voice_id'] == voice_id for voice in voices):
+            raise HTTPException(status_code=400, detail="Invalid voice ID provided.")
+        selected_voice_id = voice_id
+    
+    # Call the text_to_speech function and get the filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    podcast_filename = safe_filename(f"{title.replace(' ', '_')}")
+    podcast_filename = text_to_speech(selected_voice_id, script, podcast_filename)
+
+    return {"message": "Podcast created successfully.", "podcast_filename": podcast_filename}
+
+@app.get("/audio/{podcast_name}", response_class=StreamingResponse)
+async def get_audio_file(podcast_name: str):
+    # Decode the URL-encoded podcast name
+    decoded_podcast_name = unquote(podcast_name)
+    audio_path = f"storage/audio/output/{decoded_podcast_name}"
+    
+    print(f"Looking for audio file at: {audio_path}")  # Debugging line
+    
+    if os.path.exists(audio_path):
+        return StreamingResponse(open(audio_path, "rb"), media_type="audio/mpeg")
+    else:
+        raise HTTPException(status_code=404, detail="Audio file not found")
 
 async def main():
     print("Select an option:")
