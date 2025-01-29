@@ -8,15 +8,18 @@ import random
 from datetime import datetime
 from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from .models import PromptRequest, ScriptRequest, VoiceResponse, PromptResponse, ScriptResponse, PodcastResponse, PodcastRequest
 from urllib.parse import unquote  # Import unquote for URL decoding
 import re
-
 from pydantic import BaseModel
+from typing import List, Optional
+import uuid
+from unidecode import unidecode
+
 templates = Jinja2Templates(directory="src/templates")  # Set the template directory
 
 # Load environment variables from .env file
@@ -32,6 +35,7 @@ os.makedirs('storage/prompts', exist_ok=True)
 os.makedirs('storage/cache', exist_ok=True)
 os.makedirs('storage/audio/output', exist_ok=True)
 os.makedirs('storage/scripts', exist_ok=True)
+os.makedirs('storage/audio/uploads', exist_ok=True)
 
 app = FastAPI()
 
@@ -109,8 +113,47 @@ def fetch_voice_ids():
         print("Response:", response.text)
         return []
 
-# Function to perform text-to-speech conversion
-def text_to_speech(voice_id, text, filename=None):
+def slugify(text):
+    # Convert to ASCII
+    text = unidecode(text)
+    # Convert to lowercase
+    text = text.lower()
+    # Remove non-word characters (everything except numbers and letters)
+    text = re.sub(r'[^\w\s-]', '', text)
+    # Replace all spaces and underscores with hyphens
+    text = re.sub(r'[-\s]+', '-', text)
+    # Trim hyphens from start and end
+    return text.strip('-')
+
+# Available ElevenLabs models and their pricing
+ELEVENLABS_MODELS = {
+    'eleven_monolingual_v1': {
+        'name': 'Eleven English v1',
+        'description': 'Legacy model, English only',
+        'cost_per_char': 0.00003
+    },
+    'eleven_multilingual_v1': {
+        'name': 'Eleven Multilingual v1',
+        'description': 'Legacy multilingual model',
+        'cost_per_char': 0.00003
+    },
+    'eleven_monolingual_v2': {
+        'name': 'Eleven English v2',
+        'description': 'Improved English model',
+        'cost_per_char': 0.00004
+    },
+    'eleven_multilingual_v2': {
+        'name': 'Eleven Multilingual v2',
+        'description': 'Latest multilingual model',
+        'cost_per_char': 0.00004
+    }
+}
+
+def text_to_speech(voice_id, text, filename=None, model_id="eleven_monolingual_v1"):
+    if model_id not in ELEVENLABS_MODELS:
+        print(f"Invalid model_id: {model_id}. Using default model.")
+        model_id = "eleven_monolingual_v1"
+        
     tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
     headers = {
         "Accept": "application/json",
@@ -119,7 +162,7 @@ def text_to_speech(voice_id, text, filename=None):
     
     data = {
         "text": text,
-        "model_id": "eleven_multilingual_v2",
+        "model_id": model_id,
         "voice_settings": {
             "stability": 0.5,
             "similarity_boost": 0.8,
@@ -135,9 +178,17 @@ def text_to_speech(voice_id, text, filename=None):
     if response.ok:
         print("Received successful response from TTS API.")
         
-        # Generate a timestamped filename with prompt filename if provided
+        # Generate a timestamped filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_filename = f"{filename}_{timestamp}.mp3"
+        
+        # Use only the provided filename if available, otherwise use a truncated version of the text
+        if filename:
+            output_filename = f"{filename}_{timestamp}.mp3"
+        else:
+            # Truncate and slugify text only if no filename provided
+            slugified_text = slugify(text[:50])  # Limit to first 50 chars
+            output_filename = f"{slugified_text}_{timestamp}.mp3"
+        
         output_path = f"storage/audio/output/{output_filename}"
         
         print(f"Saving audio stream to {output_path}...")
@@ -303,6 +354,98 @@ def get_script_options():
 
     return script_options
 
+# New models
+class Audio(BaseModel):
+    duration: int
+    file: str  # We'll store the file path as a string
+    startTime: int
+    endTime: int
+
+class AudioTimeline(BaseModel):
+    id: str
+    audio: List[Audio]
+
+class Podcast(BaseModel):
+    id: str
+    name: str
+    audioTimeline: AudioTimeline
+
+# In-memory storage (replace with database in production)
+podcasts = {}
+audio_timelines = {}
+
+# CRUD operations for Podcast
+@app.post("/podcasts", response_model=Podcast)
+async def create_podcast(podcast: Podcast):
+    if podcast.id in podcasts:
+        raise HTTPException(status_code=400, detail="Podcast with this ID already exists")
+    podcasts[podcast.id] = podcast
+    return podcast
+
+@app.get("/podcasts/{podcast_id}", response_model=Podcast)
+async def read_podcast(podcast_id: str):
+    if podcast_id not in podcasts:
+        raise HTTPException(status_code=404, detail="Podcast not found")
+    return podcasts[podcast_id]
+
+@app.get("/podcasts", response_model=List[Podcast])
+async def list_podcasts():
+    return list(podcasts.values())
+
+@app.put("/podcasts/{podcast_id}", response_model=Podcast)
+async def update_podcast(podcast_id: str, podcast: Podcast):
+    if podcast_id not in podcasts:
+        raise HTTPException(status_code=404, detail="Podcast not found")
+    podcasts[podcast_id] = podcast
+    return podcast
+
+@app.delete("/podcasts/{podcast_id}")
+async def delete_podcast(podcast_id: str):
+    if podcast_id not in podcasts:
+        raise HTTPException(status_code=404, detail="Podcast not found")
+    del podcasts[podcast_id]
+    return {"message": "Podcast deleted successfully"}
+
+# CRUD operations for AudioTimeline
+@app.post("/audio-timelines", response_model=AudioTimeline)
+async def create_audio_timeline(audio_timeline: AudioTimeline):
+    if audio_timeline.id in audio_timelines:
+        raise HTTPException(status_code=400, detail="AudioTimeline with this ID already exists")
+    audio_timelines[audio_timeline.id] = audio_timeline
+    return audio_timeline
+
+@app.get("/audio-timelines/{timeline_id}", response_model=AudioTimeline)
+async def read_audio_timeline(timeline_id: str):
+    if timeline_id not in audio_timelines:
+        raise HTTPException(status_code=404, detail="AudioTimeline not found")
+    return audio_timelines[timeline_id]
+
+@app.get("/audio-timelines", response_model=List[AudioTimeline])
+async def list_audio_timelines():
+    return list(audio_timelines.values())
+
+@app.put("/audio-timelines/{timeline_id}", response_model=AudioTimeline)
+async def update_audio_timeline(timeline_id: str, audio_timeline: AudioTimeline):
+    if timeline_id not in audio_timelines:
+        raise HTTPException(status_code=404, detail="AudioTimeline not found")
+    audio_timelines[timeline_id] = audio_timeline
+    return audio_timeline
+
+@app.delete("/audio-timelines/{timeline_id}")
+async def delete_audio_timeline(timeline_id: str):
+    if timeline_id not in audio_timelines:
+        raise HTTPException(status_code=404, detail="AudioTimeline not found")
+    del audio_timelines[timeline_id]
+    return {"message": "AudioTimeline deleted successfully"}
+
+# Audio file upload endpoint
+@app.post("/upload-audio")
+async def upload_audio(file: UploadFile = File(...)):
+    file_location = f"storage/audio/uploads/{file.filename}"
+    with open(file_location, "wb+") as file_object:
+        file_object.write(file.file.read())
+    return {"filename": file.filename, "file_path": file_location}
+
 # FastAPI endpoints
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -354,7 +497,7 @@ def api_get_audio_files():
     return {"podcasts": podcasts}
     
 # Function to generate the podcast from an existing script
-async def generate_podcast_from_script():
+async def generate_podcast_from_script(voice_id=None, model_id=None):
     # Call the new function to get script options
     script_options = get_script_options()
     
@@ -388,12 +531,18 @@ async def generate_podcast_from_script():
             print(f"  {label_key}: {label_value}")  # Print each label key and value
 
     # Prompt user to select a voice
-    choice = int(input("Select a voice by number: ")) - 1
-    selected_voice_id = voices[choice]['voice_id']
+    if voice_id is None:
+        choice = int(input("Select a voice by number: ")) - 1
+        selected_voice_id = voices[choice]['voice_id']
+    else:
+        selected_voice_id = voice_id
     
     # Perform text-to-speech conversion
     script_filename = os.path.basename(script_filename).replace('.md', '')  # Get the last segment without extension
-    text_to_speech(selected_voice_id, user_input, script_filename)
+    if model_id is None:
+        text_to_speech(selected_voice_id, user_input, script_filename)
+    else:
+        text_to_speech(selected_voice_id, user_input, script_filename, model_id)
 
 @app.get("/prompts/{prompt_id}", response_class=PlainTextResponse)
 async def get_prompt_content(prompt_id: str):
@@ -523,12 +672,31 @@ async def get_audio_file(podcast_name: str):
     else:
         raise HTTPException(status_code=404, detail="Audio file not found")
 
+# New API endpoint for text-to-speech conversion
+@app.post("/text_to_speech")
+async def api_text_to_speech(request: dict):
+    voice_id = request.get("voice_id")
+    text = request.get("text")
+
+    if not voice_id:
+        raise HTTPException(status_code=400, detail="voice_id cannot be empty.")
+    if not text:
+        raise HTTPException(status_code=400, detail="text cannot be empty.")
+
+    # Call the text_to_speech function and get the filename
+    podcast_filename = text_to_speech(voice_id, text)
+
+    return {"message": "Audio file created successfully.", "podcast_filename": podcast_filename}
+
+
+
 async def main():
     print("Select an option:")
     print("1: Create a new script prompt")
     print("2: Generate a new script using an existing prompt")
     print("3: Generate the podcast from an existing script")
-    action_choice = int(input("Enter your choice (1, 2, or 3): "))
+    print("4: List available voices")
+    action_choice = int(input("Enter your choice (1-4): "))
     
     if action_choice == 1:
         topic = input("Enter a topic for the script prompt: ")
@@ -536,7 +704,51 @@ async def main():
     elif action_choice == 2:
         await generate_script_from_prompt()
     elif action_choice == 3:
-        await generate_podcast_from_script()
+        # Get available voices
+        voices = fetch_voice_ids()
+        if not voices:
+            print("Error: Could not fetch voice IDs")
+            return
+            
+        # Display available voices
+        print("\nAvailable voices:")
+        for i, voice in enumerate(voices, 1):
+            print(f"{i}: {voice.get('name', 'Unknown')} (ID: {voice.get('voice_id', 'Unknown')})")
+            
+        voice_choice = int(input("\nSelect a voice (enter number): ")) - 1
+        if voice_choice < 0 or voice_choice >= len(voices):
+            print("Invalid voice selection")
+            return
+            
+        selected_voice_id = voices[voice_choice]['voice_id']
+        
+        # Display available models
+        print("\nAvailable models (sorted by cost):")
+        sorted_models = sorted(ELEVENLABS_MODELS.items(), key=lambda x: x[1]['cost_per_char'])
+        for i, (model_id, model_info) in enumerate(sorted_models, 1):
+            print(f"{i}: {model_info['name']} - {model_info['description']}")
+            print(f"   Cost: ${model_info['cost_per_char']:.5f} per character")
+            
+        model_choice = int(input("\nSelect a model (enter number): ")) - 1
+        if model_choice < 0 or model_choice >= len(sorted_models):
+            print("Invalid model selection")
+            return
+            
+        selected_model_id = sorted_models[model_choice][0]
+        
+        # Update the generate_podcast_from_script function with the selected voice and model
+        await generate_podcast_from_script(voice_id=selected_voice_id, model_id=selected_model_id)
+    elif action_choice == 4:
+        voices = fetch_voice_ids()
+        if voices:
+            print("\nAvailable voices:")
+            for voice in voices:
+                print(f"Name: {voice.get('name', 'Unknown')}")
+                print(f"ID: {voice.get('voice_id', 'Unknown')}")
+                print(f"Description: {voice.get('description', 'No description')}")
+                print("---")
+        else:
+            print("Error: Could not fetch voice IDs")
     else:
         print("Invalid choice. Exiting.")
 

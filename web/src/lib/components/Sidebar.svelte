@@ -22,6 +22,7 @@
 			<SidebarItem label="Prompts" href="/resource/prompts"></SidebarItem>
 			<SidebarItem label="Scripts" href="/resource/scripts"></SidebarItem>
 			<SidebarItem label="Voices" href="/resource/voices"></SidebarItem>
+			<SidebarItem label="Audio Timelines" href="/resource/audio-timeline"></SidebarItem>
 		</SidebarGroup>
 	</SidebarWrapper>
 </Sidebar>
