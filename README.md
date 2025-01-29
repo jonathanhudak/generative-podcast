@@ -22,7 +22,7 @@ A powerful command-line tool for generating AI-powered podcasts using Claude AI 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/gen-podcast.git
+git clone https://github.com/jonathanhudak/generative-podcast.git
 cd gen-podcast
 ```
 
@@ -103,6 +103,29 @@ The tool supports multiple ElevenLabs models with different pricing:
    - Cost: $0.00004 per character
    - Best for: Premium multi-language content
 
+### Using Custom Voices
+
+You can use any voice from your ElevenLabs account. To find your available voices:
+
+1. Run the CLI tool with option 4 to list all voices:
+```bash
+make cli
+# Select option 4
+```
+
+2. Note down the Voice ID of the voice you want to use. Voice IDs look like this: `pNInz6obpgDQGcFmaJgB`
+
+3. When generating a podcast (option 3):
+   - You'll see a list of available voices with their IDs
+   - Each voice will be shown as: `Name (ID: voice_id_here)`
+   - Select the number corresponding to your desired voice
+
+Tips for using custom voices:
+- You can add new voices to your ElevenLabs account through their website
+- Voice IDs are unique to your account
+- Professional voices may have different pricing
+- Test your voice with a small script first to ensure quality
+
 ### Example Workflow
 
 1. Generate a script prompt:
@@ -138,11 +161,3 @@ storage/
 │   └── uploads/    # Stores uploaded audio files
 └── cache/          # Stores API response caches
 ```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
